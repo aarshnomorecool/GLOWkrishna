@@ -1,0 +1,15 @@
+tehsil,first_year,last_year,latest_observed_water_table_m,latest_baseline_pred_m,latest_human_residual_m,natural_change_m,human_change_m,total_change_m,natural_pct,human_pct,risk_category
+Nagpur Urban,2010,2024,22.559,20.708,1.851,1.112,2.189,3.3,33.7,66.3,Over-Exploited
+Nagpur Rural,2010,2024,20.24,19.227,1.013,1.325,1.465,2.79,47.5,52.5,Critical
+Kamptee,2010,2024,17.82,18.779,-0.96,1.74,-0.6,1.14,74.4,25.6,Safe
+Hingna,2010,2024,22.877,21.818,1.06,2.269,1.628,3.897,58.2,41.8,Over-Exploited
+Katol,2010,2024,19.976,19.491,0.485,0.058,1.556,1.615,3.6,96.4,Semi-Critical
+Narkhed,2010,2024,19.816,19.687,0.129,1.083,0.831,1.914,56.6,43.4,Semi-Critical
+Savner,2010,2024,14.298,13.478,0.82,0.997,2.106,3.103,32.1,67.9,Critical
+Kalmeshwar,2010,2024,20.604,19.66,0.944,-0.26,0.929,0.669,21.9,78.1,Critical
+Ramtek,2010,2024,19.257,18.952,0.305,-0.569,2.283,1.714,19.9,80.1,Semi-Critical
+Mouda,2010,2024,19.686,19.733,-0.046,1.126,0.667,1.793,62.8,37.2,Safe
+Parseoni,2010,2024,20.761,19.727,1.035,0.903,2.443,3.346,27.0,73.0,Over-Exploited
+Umred,2010,2024,17.509,18.229,-0.72,0.728,0.714,1.442,50.5,49.5,Safe
+Kuhi,2010,2024,21.013,19.531,1.482,0.057,1.404,1.461,3.9,96.1,Over-Exploited
+Bhiwapur,2010,2024,18.082,18.29,-0.208,-0.297,1.361,1.064,17.9,82.1,Safe
