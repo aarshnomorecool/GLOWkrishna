@@ -149,7 +149,10 @@ with map_col:
 
     center_lat = sum(f["geometry"]["coordinates"][0][0][1] for f in geo["features"]) / len(geo["features"])
     center_lon = sum(f["geometry"]["coordinates"][0][0][0] for f in geo["features"]) / len(geo["features"])
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=9, tiles="CartoDB positron")
+    # CartoDB's "positron" alias now gates its tiles behind an API key (shows
+    # "API KEY REQUIRED" watermarks without one). OpenStreetMap's tile server
+    # needs no key and is the most reliable free option for this.
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=9, tiles="OpenStreetMap")
 
     def style_function(feature, _selected=st.session_state.selected_tehsil):
         name = feature["properties"]["tehsil"]
