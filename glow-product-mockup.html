@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLOW: Nagpur Groundwater Outlook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  /* ---- color tokens ---- */
+  --chalk: #EEF1F0;
+  --chalk-dim: #E4E9E6;
+  --paper: #F8FAF9;
+  --ink: #17211F;
+  --ink-soft: #4A5652;
+  --deep-water: #10333C;
+  --deep-water-soft: #1B4A56;
+  --aquifer: #1F7A68;
+  --aquifer-soft: #E4F0EC;
+  --line: #D6DCD9;
+  --line-soft: #E7EBE9;
+
+  /* ---- risk scale (functional, not decorative) ---- */
+  --safe: #3E8E75;
+  --safe-bg: #E7F2EC;
+  --semi: #B98A1E;
+  --semi-bg: #F7EFDD;
+  --critical: #C3641F;
+  --critical-bg: #FBEADC;
+  --over: #A63A2C;
+  --over-bg: #F7E2DD;
+
+  /* ---- type ---- */
+  --display: 'Fraunces', serif;
+  --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+
+  /* ---- layout ---- */
+  --sidebar-w: 232px;
+  --topbar-h: 64px;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 16px;
+  --shadow-panel: 0 1px 2px rgba(16,51,60,0.06), 0 8px 24px -12px rgba(16,51,60,0.18);
+  --dur: 220ms;
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+
+[data-theme="dark"] {
+  --chalk: #101917;
+  --chalk-dim: #0B1413;
+  --paper: #14201E;
+  --ink: #E8EDEB;
+  --ink-soft: #9FB0AC;
+  --deep-water: #0B262D;
+  --deep-water-soft: #163943;
+  --aquifer: #4CB79E;
+  --aquifer-soft: #1A332E;
+  --line: #263531;
+  --line-soft: #1D2926;
+  --safe-bg: #1B2E27;
+  --semi-bg: #2E2716;
+  --critical-bg: #2E2013;
+  --over-bg: #2E1815;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  background: var(--chalk);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, .display {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--ink);
+}
+p { margin: 0; line-height: 1.5; }
+button {
+  font-family: var(--sans);
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+input { font-family: var(--sans); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+::selection { background: var(--aquifer-soft); }
+
+a, button, [tabindex] {
+  outline: none;
+}
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+  outline: 2px solid var(--aquifer);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ================= APP SHELL ================= */
+#shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar main";
+  height: 100vh;
+}
+
+/* ---- sidebar ---- */
+#sidebar {
+  grid-area: sidebar;
+  background: var(--deep-water);
+  color: #EDF3F1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 26px 10px;
+}
+.brand-mark {
+  width: 32px; height: 32px;
+  color: #78D6C0;
+  flex-shrink: 0;
+}
+.brand-mark path, .brand-mark circle { vector-effect: non-scaling-stroke; }
+.brand-name {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+.brand-sub {
+  font-size: 10.5px;
+  color: #9FC4BC;
+  margin-top: -2px;
+  letter-spacing: 0.02em;
+}
+nav.navlist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.navitem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  color: #C6D9D4;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  text-align: left;
+  width: 100%;
+}
+.navitem svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.85; }
+.navitem:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.navitem.active {
+  background: var(--aquifer);
+  color: #fff;
+}
+.navitem.active svg { opacity: 1; }
+.sidebar-foot {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 14px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: #7FA69D;
+  line-height: 1.5;
+}
+
+/* ---- topbar ---- */
+#topbar {
+  grid-area: topbar;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 26px;
+  position: relative;
+  z-index: 30;
+}
+.topbar-left { display:flex; align-items:center; gap:16px; }
+.view-title { font-size: 15px; font-weight: 600; color: var(--ink); font-family: var(--sans); }
+.search-wrap { position: relative; width: 280px; }
+.search-wrap input {
+  width: 100%;
+  padding: 8px 12px 8px 34px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  background: var(--chalk);
+  font-size: 13px;
+  color: var(--ink);
+}
+.search-wrap svg {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--ink-soft);
+}
+.search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; width: 100%;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m);
+  box-shadow: var(--shadow-panel);
+  max-height: 220px; overflow-y: auto;
+  display: none;
+  z-index: 40;
+}
+.search-results.open { display: block; }
+.search-result-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px; font-size: 13px; width: 100%; text-align: left;
+}
+.search-result-item:hover { background: var(--chalk); }
+.topbar-right { display: flex; align-items: center; gap: 6px; }
+.icon-btn {
+  position: relative;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  color: var(--ink-soft);
+  transition: background var(--dur) var(--ease);
+}
+.icon-btn:hover { background: var(--chalk-dim); color: var(--ink); }
+.icon-btn svg { width: 18px; height: 18px; }
+.badge-dot {
+  position: absolute; top: 7px; right: 7px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--critical);
+  border: 1.5px solid var(--paper);
+}
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--aquifer), var(--deep-water-soft));
+  color: #fff; font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans);
+}
+
+/* dropdowns */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 300px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-panel);
+  padding: 8px;
+  display: none;
+  z-index: 50;
+}
+.dropdown.open { display: block; }
+.dropdown-head {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+  padding: 8px 10px 6px;
+}
+.alert-item {
+  display: flex; gap: 10px; padding: 9px 10px; border-radius: var(--radius-s);
+  width: 100%; text-align: left; align-items: flex-start;
+}
+.alert-item:hover { background: var(--chalk); }
+.alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.alert-text { font-size: 12.5px; line-height: 1.4; }
+.alert-time { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+.profile-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: var(--radius-s); font-size: 13px; width: 100%; text-align: left;
+}
+.profile-item:hover { background: var(--chalk); }
+.profile-item svg { width: 16px; height: 16px; color: var(--ink-soft); }
+.pref-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 10px; font-size: 13px;
+}
+.toggle {
+  width: 36px; height: 20px; border-radius: 999px; background: var(--line);
+  position: relative; transition: background var(--dur) var(--ease); flex-shrink: 0;
+}
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: transform var(--dur) var(--ease);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+.toggle.on { background: var(--aquifer); }
+.toggle.on::after { transform: translateX(16px); }
+
+
+/* ---- main / views ---- */
+#main {
+  grid-area: main;
+  overflow-y: auto;
+  position: relative;
+}
+.view { display: none; padding: 28px 32px 60px; }
+.view.active { display: block; }
+
+/* hero */
+.hero {
+  position: relative;
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  background: var(--deep-water);
+  padding: 30px 34px;
+  margin-bottom: 22px;
+  min-height: 168px;
+  display: flex;
+  align-items: center;
+}
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.9; }
+.hero-content { position: relative; z-index: 2; max-width: 560px; }
+.hero-eyebrow {
+  font-size: 12.5px; color: #9FC4BC; margin-bottom: 8px; font-weight: 500;
+}
+.hero h1 { font-size: 28px; color: #fff; line-height: 1.2; }
+.hero p { color: #C6D9D4; font-size: 14px; margin-top: 10px; max-width: 460px; }
+
+/* stat strip */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-chip {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.stat-chip:hover { border-color: var(--aquifer); transform: translateY(-1px); }
+.stat-chip.filtered { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.stat-top { display: flex; align-items: center; justify-content: space-between; }
+.stat-label { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.stat-swatch { width: 9px; height: 9px; border-radius: 50%; }
+.stat-count { font-family: var(--mono); font-size: 26px; font-weight: 600; color: var(--ink); }
+.stat-sub { font-size: 11.5px; color: var(--ink-soft); }
+
+/* dashboard grid */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  padding: 20px;
+}
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.panel-title { font-size: 14.5px; font-weight: 600; }
+.panel-note { font-size: 11.5px; color: var(--ink-soft); }
+
+/* map */
+.map-wrap { position: relative; }
+svg#tehsil-map { width: 100%; height: auto; display: block; }
+.tehsil-shape {
+  stroke: var(--paper);
+  stroke-width: 1.5;
+  cursor: default;
+  transition: opacity var(--dur) var(--ease), filter var(--dur) var(--ease);
+}
+.tehsil-shape.is-pilot { cursor: pointer; stroke-width: 2.5; }
+.tehsil-shape.is-pilot:hover { filter: brightness(1.08); }
+.tehsil-shape.dimmed { opacity: 0.22; }
+.tehsil-shape.selected {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+.tehsil-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  fill: var(--ink-soft);
+  pointer-events: none;
+  text-anchor: middle;
+  font-weight: 500;
+}
+.tehsil-label.is-pilot { fill: #fff; }
+.map-loading { fill: var(--ink-soft); font-family: var(--mono); font-size: 12px; }
+.map-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--ink);
+  color: #fff;
+  padding: 7px 10px;
+  border-radius: var(--radius-s);
+  font-size: 12px;
+  transform: translate(-50%, -115%);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms var(--ease);
+  z-index: 10;
+}
+.map-tooltip.show { opacity: 1; }
+.map-tooltip b { font-family: var(--mono); }
+.map-legend { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-soft); }
+.legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+.map-attrib { font-size: 10px; color: var(--ink-soft); margin-top: 10px; opacity: 0.75; }
+
+/* detail panel */
+#detail-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 50px 20px; color: var(--ink-soft); gap: 10px; min-height: 320px;
+}
+#detail-empty svg { width: 34px; height: 34px; opacity: 0.5; }
+#detail-empty p { font-size: 13px; max-width: 220px; }
+#detail-content { display: none; }
+#detail-content.show { display: block; }
+.detail-name { font-family: var(--display); font-size: 20px; font-weight: 600; }
+.risk-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; margin-top: 8px;
+}
+.risk-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+.detail-statement {
+  font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 14px 0 18px;
+  padding: 12px 14px; background: var(--chalk); border-radius: var(--radius-m);
+}
+.chart-box { position: relative; height: 160px; margin-bottom: 6px; }
+.chart-label { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin: 16px 0 8px; }
+.attrib-row { display: flex; align-items: center; gap: 14px; }
+.attrib-donut { width: 84px; height: 84px; flex-shrink: 0; }
+.attrib-legend { font-size: 12px; display: flex; flex-direction: column; gap: 7px; }
+.attrib-legend .li { display: flex; align-items: center; gap: 7px; }
+.attrib-legend .sw { width: 9px; height: 9px; border-radius: 2px; }
+.attrib-legend b { font-family: var(--mono); }
+.detail-actions { display: flex; gap: 8px; margin-top: 18px; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 15px; border-radius: var(--radius-s);
+  font-size: 13px; font-weight: 600;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+  white-space: nowrap;
+}
+.btn svg { width: 15px; height: 15px; }
+.btn-primary { background: var(--aquifer); color: #fff; }
+.btn-primary:hover { background: var(--deep-water-soft); }
+.btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.btn-ghost:hover { border-color: var(--ink); }
+.btn-quiet { background: var(--chalk); color: var(--ink); }
+.btn-quiet:hover { background: var(--chalk-dim); }
+.btn-block { width: 100%; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- sandbox view ---- */
+.sandbox-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.slider-block { margin-bottom: 22px; }
+.slider-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.slider-name { font-size: 13px; font-weight: 600; }
+.slider-val { font-family: var(--mono); font-size: 13px; color: var(--aquifer); font-weight: 600; }
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%; height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--aquifer);
+  border: 2px solid var(--paper);
+  box-shadow: 0 0 0 1px var(--aquifer);
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--aquifer); border: 2px solid var(--paper);
+  box-shadow: 0 0 0 1px var(--aquifer); cursor: pointer;
+}
+.slider-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-soft); margin-top: 4px; }
+.sandbox-actions { display: flex; gap: 8px; margin-top: 6px; }
+.scenario-list { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+.scenario-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px;
+}
+.scenario-item:last-child { border-bottom: none; }
+.scenario-meta { color: var(--ink-soft); font-size: 11px; margin-top: 2px; }
+.scenario-load { font-size: 12px; font-weight: 600; color: var(--aquifer); }
+.scenario-load:hover { text-decoration: underline; }
+.scenario-empty { font-size: 12.5px; color: var(--ink-soft); padding: 6px 0 2px; }
+.sandbox-note {
+  font-size: 12px; color: var(--ink-soft); background: var(--chalk);
+  border-radius: var(--radius-m); padding: 10px 12px; margin-top: 18px; line-height: 1.5;
+}
+
+/* ---- reports view ---- */
+.view-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px;
+}
+.view-head h2 { font-size: 21px; }
+.view-head p.sub { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+.report-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 15px 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  margin-bottom: 10px;
+}
+.report-icon {
+  width: 38px; height: 38px; border-radius: var(--radius-s);
+  background: var(--aquifer-soft); color: var(--aquifer);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.report-icon svg { width: 18px; height: 18px; }
+.report-info { flex: 1; min-width: 0; }
+.report-title { font-size: 13.5px; font-weight: 600; }
+.report-meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+.report-status {
+  font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+  background: var(--safe-bg); color: var(--safe);
+}
+.report-actions { display: flex; gap: 6px; }
+.reports-empty {
+  text-align: center; padding: 60px 20px; color: var(--ink-soft);
+}
+.reports-empty svg { width: 32px; height: 32px; opacity: 0.5; margin-bottom: 10px; }
+
+/* ---- data sources view ---- */
+.source-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+.source-card {
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--radius-m);
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.source-card.tier2 { border-style: dashed; }
+.source-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.source-name { font-size: 13.5px; font-weight: 600; }
+.source-tier { font-size: 10.5px; color: var(--ink-soft); margin-top: 2px; }
+.source-status {
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
+.source-status.connected { background: var(--safe-bg); color: var(--safe); }
+.source-status.pending { background: var(--semi-bg); color: var(--semi); }
+.source-desc { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+.source-sync { font-size: 11px; color: var(--ink-soft); font-family: var(--mono); }
+.source-actions { margin-top: auto; padding-top: 4px; }
+
+/* ---- how it works view ---- */
+.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.step-card {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m);
+  padding: 18px; cursor: pointer;
+}
+.step-icon {
+  width: 36px; height: 36px; border-radius: var(--radius-s);
+  background: var(--deep-water); color: #fff;
+  display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+}
+.step-icon svg { width: 18px; height: 18px; }
+.step-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.step-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+.step-more {
+  font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin-top: 12px;
+  padding-top: 12px; border-top: 1px solid var(--line-soft);
+  display: none;
+}
+.step-card.expanded .step-more { display: block; }
+.step-toggle-hint { font-size: 11.5px; color: var(--aquifer); font-weight: 600; margin-top: 10px; }
+
+/* ---- modal ---- */
+#modal-overlay {
+  position: fixed; inset: 0; background: rgba(16,33,36,0.45);
+  display: none; align-items: center; justify-content: center; z-index: 100;
+  backdrop-filter: blur(2px);
+}
+#modal-overlay.open { display: flex; }
+.modal {
+  background: var(--paper); border-radius: var(--radius-l);
+  width: 420px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
+  padding: 26px;
+  box-shadow: 0 24px 64px -20px rgba(0,0,0,0.35);
+}
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.modal-title { font-family: var(--display); font-size: 19px; font-weight: 600; }
+.modal-close { width: 28px; height: 28px; border-radius: 50%; display:flex; align-items:center; justify-content:center; color: var(--ink-soft); }
+.modal-close:hover { background: var(--chalk); }
+.modal-close svg { width: 16px; height: 16px; }
+.modal-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+.modal-row span:first-child { color: var(--ink-soft); }
+.modal-row span:last-child { font-family: var(--mono); font-weight: 600; }
+.modal-foot { display: flex; gap: 8px; margin-top: 20px; }
+
+/* ---- toasts ---- */
+#toast-stack {
+  position: fixed; bottom: 22px; right: 22px; z-index: 200;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+}
+.toast {
+  background: var(--ink); color: #fff;
+  padding: 11px 16px; border-radius: var(--radius-s);
+  font-size: 12.5px; font-weight: 500;
+  box-shadow: 0 12px 28px -8px rgba(0,0,0,0.35);
+  display: flex; align-items: center; gap: 9px;
+  animation: toast-in 220ms var(--ease);
+}
+.toast svg { width: 15px; height: 15px; color: var(--safe); flex-shrink: 0; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- responsive ---- */
+@media (max-width: 1180px) {
+  .sandbox-grid { grid-template-columns: 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .source-grid { grid-template-columns: repeat(2, 1fr); }
+  .steps-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 860px) {
+  :root { --sidebar-w: 74px; }
+  .brand-name, .brand-sub, .navitem span { display: none; }
+  .brand { justify-content: center; }
+  .navitem { justify-content: center; }
+  .search-wrap { width: 160px; }
+  .stat-strip { grid-template-columns: repeat(2, 1fr); }
+  .source-grid { grid-template-columns: 1fr; }
+  .steps-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-label="GLOW logo" role="img" fill="none">
+        <path d="M16 3.5C12.3 8.4 8.5 12.4 8.5 17.2A7.5 7.5 0 0 0 16 24.7a7.5 7.5 0 0 0 7.5-7.5C23.5 12.4 19.7 8.4 16 3.5Z" stroke="currentColor" stroke-width="2"/>
+        <path d="M11.5 18.2c1.5 1.1 3 1.6 4.5 1.6s3-.5 4.5-1.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="15.2" r="1.1" fill="currentColor" stroke="none"/>
+      </svg>
+      <div>
+        <div class="brand-name">GLOW</div>
+        <div class="brand-sub">Vidarbha pilot</div>
+      </div>
+    </div>
+    <nav class="navlist">
+      <button class="navitem active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="navitem" data-view="sandbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM4 18h16M14 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM4 12h16M9 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0z"/></svg>
+        <span>Policy Sandbox</span>
+      </button>
+      <button class="navitem" data-view="reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 17h6M9 9h2"/></svg>
+        <span>Reports</span>
+      </button>
+      <button class="navitem" data-view="sources">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
+        <span>Data Sources</span>
+      </button>
+      <button class="navitem" data-view="howitworks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.6 1.3c0 1.5-2.1 1.7-2.1 3.2M12 17h.01"/></svg>
+        <span>How It Works</span>
+      </button>
+    </nav>
+    <div class="sidebar-foot">
+      Vidarbha region<br>Nagpur pilot tracked
+    </div>
+  </aside>
+
+  <header id="topbar">
+    <div class="topbar-left">
+      <span class="view-title" id="view-title-text">Dashboard</span>
+    </div>
+    <div class="topbar-left" style="gap:0;">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search-input" type="text" placeholder="Search a tehsil...">
+        <div class="search-results" id="search-results"></div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div style="position:relative;">
+        <button class="icon-btn" id="alerts-btn" aria-label="Alerts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="badge-dot"></span>
+        </button>
+        <div class="dropdown" id="alerts-dropdown">
+          <div class="dropdown-head">Recent alerts</div>
+          <div id="alerts-list"></div>
+        </div>
+      </div>
+      <div style="position:relative;">
+        <button class="icon-btn" id="profile-btn" aria-label="Profile" style="border-radius:50%;">
+          <span class="avatar">DM</span>
+        </button>
+        <div class="dropdown" id="profile-dropdown">
+          <div class="dropdown-head">District Officer</div>
+          <button class="profile-item" id="preferences-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.14.41.44.76.83.98.28.16.6.24.93.24H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Preferences
+          </button>
+          <button class="profile-item" id="signout-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ============ DASHBOARD VIEW ============ -->
+    <section class="view active" id="view-dashboard">
+      <div class="hero">
+        <canvas id="hero-canvas"></canvas>
+        <div class="hero-content">
+          <div class="hero-eyebrow">Vidarbha region, Nagpur pilot</div>
+          <h1>See what is drawing the water table down, where the evidence is strongest.</h1>
+          <p>Every reading below separates rainfall from extraction, so you know what a policy can actually fix.</p>
+        </div>
+      </div>
+
+      <div class="stat-strip" id="stat-strip"></div>
+
+      <div class="dash-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Vidarbha regional map</span>
+            <span class="panel-note" id="map-panel-note">11 district outlines · Nagpur pilot</span>
+          </div>
+          <div class="map-wrap">
+            <svg id="tehsil-map" viewBox="0 0 640 460" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div class="map-tooltip" id="map-tooltip"></div>
+          </div>
+          <div class="map-legend" id="map-legend"></div>
+          <div class="map-attrib">District boundaries: public administrative-boundary data. GLOW measurements currently cover the Nagpur pilot.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Tehsil detail</span>
+          </div>
+          <div id="detail-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 20l-5.5 2L9 4l6 16 5.5-2L15 4"/></svg>
+            <p>Select a tehsil on the map, or search for one above, to see its forecast and drivers.</p>
+          </div>
+          <div id="detail-content">
+            <div class="detail-name" id="detail-name">-</div>
+            <span class="risk-badge" id="detail-badge"><span class="dot"></span><span id="detail-badge-text">-</span></span>
+            <p class="detail-statement" id="detail-statement"></p>
+
+            <div class="chart-label">Drawdown, actual vs. climate-only baseline</div>
+            <div class="chart-box"><canvas id="drawdown-chart"></canvas></div>
+
+            <div class="chart-label">What's driving it</div>
+            <div class="attrib-row">
+              <div class="attrib-donut"><canvas id="attrib-chart"></canvas></div>
+              <div class="attrib-legend" id="attrib-legend"></div>
+            </div>
+
+            <div class="detail-actions">
+              <button class="btn btn-primary" id="open-in-sandbox-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM4 18h16M14 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0z"/></svg>
+                Open in Sandbox
+              </button>
+              <button class="btn btn-ghost" id="export-report-btn">Export report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SANDBOX VIEW ============ -->
+    <section class="view" id="view-sandbox">
+      <div class="view-head">
+        <div>
+          <h2>Policy Sandbox</h2>
+          <p class="sub">Test a policy before you fund it. Adjustments apply district-wide and recompute every tehsil.</p>
+        </div>
+      </div>
+
+      <div class="sandbox-grid">
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Assumptions</span></div>
+
+          <div class="slider-block">
+            <div class="slider-top"><span class="slider-name">Rainfall change</span><span class="slider-val" id="val-rainfall">0%</span></div>
+            <input type="range" id="slider-rainfall" min="-30" max="30" value="0" step="1">
+            <div class="slider-scale"><span>-30%</span><span>+30%</span></div>
+          </div>
+
+          <div class="slider-block">
+            <div class="slider-top"><span class="slider-name">Drip-irrigation adoption</span><span class="slider-val" id="val-drip">20%</span></div>
+            <input type="range" id="slider-drip" min="0" max="100" value="20" step="1">
+            <div class="slider-scale"><span>0%</span><span>100%</span></div>
+          </div>
+
+          <div class="slider-block">
+            <div class="slider-top"><span class="slider-name">Borewell growth</span><span class="slider-val" id="val-borewell">0%</span></div>
+            <input type="range" id="slider-borewell" min="-20" max="50" value="0" step="1">
+            <div class="slider-scale"><span>-20%</span><span>+50%</span></div>
+          </div>
+
+          <div class="sandbox-actions">
+            <button class="btn btn-ghost btn-block" id="reset-sliders-btn">Reset sliders</button>
+            <button class="btn btn-primary btn-block" id="save-scenario-btn">Save scenario</button>
+          </div>
+
+          <div class="scenario-list">
+            <div class="panel-title" style="margin-bottom:8px;">Saved scenarios</div>
+            <div id="scenario-list-items"><div class="scenario-empty">No scenarios saved yet.</div></div>
+          </div>
+
+          <div class="sandbox-note">Scores here use simplified illustrative logic, built to show what the interaction should feel like. The trained model behind it is a two-stage RandomForest, kept separate for climate and human effects.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">District response</span>
+            <span class="panel-note">Focused on <b class="mono" id="sandbox-focus-name">Nagpur (Urban)</b></span>
+          </div>
+          <svg id="tehsil-map-sandbox" viewBox="0 0 640 460" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="map-legend" id="map-legend-sandbox"></div>
+
+          <div class="chart-label">Projected drawdown for the focused tehsil</div>
+          <div class="chart-box"><canvas id="sandbox-chart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ REPORTS VIEW ============ -->
+    <section class="view" id="view-reports">
+      <div class="view-head">
+        <div>
+          <h2>Reports</h2>
+          <p class="sub">Generated summaries you can review, print, or hand to a reviewing officer.</p>
+        </div>
+        <button class="btn btn-primary" id="generate-report-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Generate report
+        </button>
+      </div>
+      <div id="reports-list"></div>
+    </section>
+
+    <!-- ============ DATA SOURCES VIEW ============ -->
+    <section class="view" id="view-sources">
+      <div class="view-head">
+        <div>
+          <h2>Data sources</h2>
+          <p class="sub">What feeds the model, and where each dataset stands.</p>
+        </div>
+      </div>
+      <div class="source-grid" id="source-grid"></div>
+    </section>
+
+    <!-- ============ HOW IT WORKS VIEW ============ -->
+    <section class="view" id="view-howitworks">
+      <div class="view-head">
+        <div>
+          <h2>How GLOW works</h2>
+          <p class="sub">Four steps from raw readings to a testable policy. Click a step for more detail.</p>
+        </div>
+      </div>
+      <div class="steps-grid" id="steps-grid"></div>
+    </section>
+
+  </main>
+</div>
+
+<div id="modal-overlay">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<div id="toast-stack"></div>
+
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   DATA
+   ============================================================ */
+const RISK = {
+  safe:     { label: "Safe",           color: "var(--safe)",     hex: "#3E8E75", bg: "var(--safe-bg)"     },
+  semi:     { label: "Semi-Critical",  color: "var(--semi)",     hex: "#B98A1E", bg: "var(--semi-bg)"     },
+  critical: { label: "Critical",       color: "var(--critical)", hex: "#C3641F", bg: "var(--critical-bg)" },
+  over:     { label: "Over-Exploited", color: "var(--over)",     hex: "#A63A2C", bg: "var(--over-bg)"     }
+};
+
+function riskKey(score) {
+  if (score < 35) return "safe";
+  if (score < 55) return "semi";
+  if (score < 75) return "critical";
+  return "over";
+}
+
+const TEHSILS = [
+  { id: "nagpur-urban",  name: "Nagpur (Urban)", code: "NGP-U", base: 58, humanRatio: 0.55 },
+  { id: "nagpur-rural",  name: "Nagpur (Rural)", code: "NGP-R", base: 47, humanRatio: 0.45 },
+  { id: "kamptee",       name: "Kamptee",        code: "KAM",   base: 62, humanRatio: 0.60 },
+  { id: "hingna",        name: "Hingna",         code: "HNG",   base: 71, humanRatio: 0.65 },
+  { id: "katol",         name: "Katol",          code: "KAT",   base: 44, humanRatio: 0.40 },
+  { id: "narkhed",       name: "Narkhed",        code: "NRK",   base: 78, humanRatio: 0.70 },
+  { id: "savner",        name: "Savner",         code: "SAV",   base: 39, humanRatio: 0.35 },
+  { id: "kalameshwar",   name: "Kalameshwar",    code: "KLM",   base: 52, humanRatio: 0.48 },
+  { id: "ramtek",        name: "Ramtek",         code: "RAM",   base: 28, humanRatio: 0.20 },
+  { id: "parseoni",      name: "Parseoni",       code: "PAR",   base: 33, humanRatio: 0.25 },
+  { id: "mouda",         name: "Mouda",          code: "MOU",   base: 46, humanRatio: 0.42 },
+  { id: "kuhi",          name: "Kuhi",           code: "KUH",   base: 60, humanRatio: 0.58 },
+  { id: "umred",         name: "Umred",          code: "UMR",   base: 82, humanRatio: 0.72 },
+  { id: "bhiwapur",      name: "Bhiwapur",       code: "BHI",   base: 32, humanRatio: 0.30 }
+];
+
+const SOURCES = [
+  { name: "CGWB / India-WRIS", tier: "Tier 1", desc: "Groundwater level readings, the target variable for both model stages.", status: "connected", tier2: false },
+  { name: "IMD Pune",          tier: "Tier 1", desc: "Gridded rainfall and temperature, the core climate baseline inputs.",      status: "connected", tier2: false },
+  { name: "data.gov.in",       tier: "Tier 1", desc: "District crop and season production, an anthropogenic-demand proxy.",      status: "connected", tier2: false },
+  { name: "Minor Irrigation Census", tier: "Tier 1", desc: "Borewell and dugwell counts, the safest extraction proxy available.", status: "connected", tier2: false },
+  { name: "GSDA Nagpur",       tier: "Tier 2", desc: "Finer-grained well and geological data for the Nagpur division.",           status: "pending", tier2: true },
+  { name: "MSEDCL power",      tier: "Tier 2", desc: "Feeder-level consumption. No public API, needs a direct request.",          status: "pending", tier2: true }
+];
+
+const STEPS = [
+  { title: "Ingest & align", desc: "Rainfall, temperature and crop data are aligned to each tehsil and season.", more: "Every reading is joined on a block/tehsil plus season grid, so a rainfall anomaly and a crop-water-intensity reading for the same place and quarter sit in one row." },
+  { title: "Two-stage model", desc: "A climate baseline model and a residual model, kept genuinely separate.", more: "Stage one predicts the water table from natural variables alone. Stage two explains the gap between that prediction and reality using human-demand proxies only. Neither stage sees the other's inputs." },
+  { title: "Risk classification", desc: "Each tehsil is placed into Safe, Semi-Critical, Critical or Over-Exploited.", more: "Thresholds are fit once against the reference population and then reused, so a tehsil's category always means the same thing across every scenario you test." },
+  { title: "Policy Sandbox", desc: "Adjust rainfall, irrigation or extraction assumptions and see the effect immediately.", more: "Moving a slider reruns both trained stages by inference only, on one perturbed row per tehsil, and projects a new drawdown curve." }
+];
+
+/* ============================================================
+   STATE & API INTEGRATION
+   ============================================================ */
+const API_BASE = window.location.origin.startsWith("http") ? "" : "http://127.0.0.1:8000";
+const VIDARBHA_DISTRICTS = new Set([
+  "Akola", "Amravati", "Bhandara", "Buldhana", "Chandrapur", "Gadchiroli",
+  "Gondia", "Nagpur", "Wardha", "Washim", "Yavatmal"
+]);
+let vidarbhaFeatures = [];
+
+function projectVidarbhaFeatures(features) {
+  const points = [];
+  features.forEach((feature) => {
+    const polygons = feature.geometry.type === "MultiPolygon"
+      ? feature.geometry.coordinates : [feature.geometry.coordinates];
+    polygons.forEach((polygon) => polygon.forEach((ring) => ring.forEach((point) => points.push(point))));
+  });
+  const lons = points.map((p) => p[0]), lats = points.map((p) => p[1]);
+  const minLon = Math.min.apply(null, lons), maxLon = Math.max.apply(null, lons);
+  const minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+  const margin = 26, width = 640, height = 460;
+  const scale = Math.min((width - margin * 2) / (maxLon - minLon), (height - margin * 2) / (maxLat - minLat));
+  const offsetX = (width - (maxLon - minLon) * scale) / 2;
+  const offsetY = (height - (maxLat - minLat) * scale) / 2;
+  const project = (p) => [offsetX + (p[0] - minLon) * scale, offsetY + (maxLat - p[1]) * scale];
+  const ringPath = (ring) => ring.map((p, i) => (i ? "L" : "M") + project(p).map((v) => v.toFixed(1)).join(",")).join("") + "Z";
+
+  return features.map((feature) => {
+    const polygons = feature.geometry.type === "MultiPolygon"
+      ? feature.geometry.coordinates : [feature.geometry.coordinates];
+    const outline = polygons.map((polygon) => polygon.map(ringPath).join("")).join("");
+    const outer = polygons[0][0];
+    const center = outer.reduce((sum, p) => [sum[0] + p[0], sum[1] + p[1]], [0, 0]);
+    const label = project([center[0] / outer.length, center[1] / outer.length]);
+    return { name: feature.properties.district, outline: outline, labelX: label[0], labelY: label[1] };
+  });
+}
+
+async function loadVidarbhaBoundaryData() {
+  const urls = [
+    API_BASE + "/assets/maharashtra_districts.geojson",
+    "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@2884453/geojson/states/maharashtra.geojson"
+  ];
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const geojson = await response.json();
+      const region = geojson.features.filter((feature) => VIDARBHA_DISTRICTS.has(feature.properties.district));
+      if (region.length === 11) {
+        vidarbhaFeatures = projectVidarbhaFeatures(region);
+        return;
+      }
+    } catch (err) {
+      console.warn("Unable to load Vidarbha boundary data from", url, err);
+    }
+  }
+}
+
+const state = {
+  view: "dashboard",
+  selectedTehsil: null,
+  sandboxFocus: "nagpur-urban",
+  sliders: { rainfall: 0, drip: 20, borewell: 0 },
+  scenarios: [],
+  reports: [],
+  theme: "light",
+  compactNumbers: false,
+  charts: {},
+  baselineData: {},
+  scenarioData: null,
+  apiConnected: false
+};
+
+async function fetchTehsilsFromAPI() {
+  try {
+    const res = await fetch(API_BASE + "/api/tehsils");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    state.apiConnected = true;
+    state.baselineData = {};
+    if (data && data.tehsils) {
+      data.tehsils.forEach((t) => {
+        state.baselineData[t.id] = t;
+      });
+    }
+    return true;
+  } catch (err) {
+    console.warn("GLOW API /api/tehsils unreachable, running in preview mode:", err);
+    return false;
+  }
+}
+
+async function fetchSimulateFromAPI(tehsilId, sliders) {
+  try {
+    const res = await fetch(API_BASE + "/api/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rainfall: sliders.rainfall,
+        drip: sliders.drip,
+        borewell: sliders.borewell,
+        tehsil_id: tehsilId
+      })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    state.scenarioData = data;
+    return data;
+  } catch (err) {
+    console.warn("GLOW API /api/simulate error:", err);
+    return null;
+  }
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function fmtPct(n) { return (n > 0 ? "+" : "") + n + "%"; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function currentScore(tehsil, sliders) {
+  const tid = typeof tehsil === "string" ? tehsil : (tehsil ? tehsil.id : "");
+  if (sliders && state.scenarioData && state.scenarioData.all_tehsils && state.scenarioData.all_tehsils[tid]) {
+    return state.scenarioData.all_tehsils[tid].score;
+  }
+  if (state.baselineData && state.baselineData[tid]) {
+    return state.baselineData[tid].score;
+  }
+  sliders = sliders || { rainfall: 0, drip: 20, borewell: 0 };
+  const rainfallEffect = -sliders.rainfall * 0.55;
+  const dripEffect = -(sliders.drip - 20) * 0.22;
+  const borewellEffect = sliders.borewell * 0.45;
+  const raw = (tehsil && tehsil.base ? tehsil.base : 50) + rainfallEffect + dripEffect + borewellEffect;
+  return clamp(Math.round(raw), 4, 97);
+}
+
+function scoreParts(tehsil, sliders) {
+  const tid = typeof tehsil === "string" ? tehsil : (tehsil ? tehsil.id : "");
+  if (sliders && state.scenarioData && state.scenarioData.all_tehsils && state.scenarioData.all_tehsils[tid]) {
+    const sc = state.scenarioData.all_tehsils[tid];
+    return { score: sc.score, humanPct: Math.round(sc.human_pct), naturalPct: Math.round(sc.natural_pct) };
+  }
+  if (state.baselineData && state.baselineData[tid]) {
+    const b = state.baselineData[tid];
+    return { score: b.score, humanPct: Math.round(b.human_pct), naturalPct: Math.round(b.natural_pct) };
+  }
+  const score = currentScore(tehsil, sliders);
+  const humanPct = clamp(Math.round((tehsil && tehsil.humanRatio ? tehsil.humanRatio : 0.5) * 100 + (sliders ? (sliders.borewell * 0.3 - (sliders.drip - 20) * 0.15) : 0)), 6, 94);
+  return { score, humanPct, naturalPct: 100 - humanPct };
+}
+function plainLanguage(tehsil, score, humanPct) {
+  const key = riskKey(score);
+  const label = RISK[key].label;
+  let verb = "Roughly";
+  return tehsil.name + " is " + label.toLowerCase() + ". " + verb + " " + humanPct + "% of its stress traces back to extraction and cropping, not rainfall.";
+}
+
+function showToast(msg, tone) {
+  const stack = document.getElementById("toast-stack");
+  const el = document.createElement("div");
+  el.className = "toast";
+  const iconOk = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg>';
+  el.innerHTML = iconOk + "<span>" + msg + "</span>";
+  stack.appendChild(el);
+  setTimeout(() => {
+    el.style.transition = "opacity 200ms ease, transform 200ms ease";
+    el.style.opacity = "0";
+    el.style.transform = "translateY(6px)";
+    setTimeout(() => el.remove(), 220);
+  }, 2600);
+}
+
+function openModal(html) {
+  document.getElementById("modal-body").innerHTML = html;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+function closeModal() {
+  document.getElementById("modal-overlay").classList.remove("open");
+}
+document.getElementById("modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "modal-overlay") closeModal();
+});
+
+/* ============================================================
+   MAP RENDERING (shared renderer, used for dashboard + sandbox)
+   ============================================================ */
+function renderMap(svgId, opts) {
+  opts = opts || {};
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = "";
+  if (!vidarbhaFeatures.length) {
+    const loading = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    loading.setAttribute("x", "320");
+    loading.setAttribute("y", "230");
+    loading.setAttribute("text-anchor", "middle");
+    loading.setAttribute("class", "map-loading");
+    loading.textContent = "Loading Vidarbha district boundaries…";
+    svg.appendChild(loading);
+    return;
+  }
+  const sliders = opts.sliders || null;
+  const nagpur = TEHSILS.find((t) => t.id === "nagpur-urban");
+  const nagpurParts = scoreParts(nagpur, sliders);
+  const nagpurRisk = riskKey(nagpurParts.score);
+  vidarbhaFeatures.forEach((district) => {
+    const isPilot = district.name === "Nagpur";
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", district.outline);
+    path.setAttribute("fill", isPilot ? "var(--" + nagpurRisk + ")" : "var(--aquifer-soft)");
+    path.setAttribute("class", "tehsil-shape");
+    path.dataset.district = district.name;
+    if (isPilot) path.classList.add("is-pilot");
+    if (isPilot && opts.selected === "nagpur-urban") path.classList.add("selected");
+    if (isPilot && opts.filterKey && nagpurRisk !== opts.filterKey) path.classList.add("dimmed");
+    path.addEventListener("click", () => {
+      if (isPilot && opts.onClick) opts.onClick("nagpur-urban");
+    });
+    path.addEventListener("mousemove", (e) => {
+      if (isPilot && opts.onHover) opts.onHover(nagpur, nagpurParts, e);
+    });
+    path.addEventListener("mouseleave", () => {
+      if (isPilot && opts.onLeave) opts.onLeave();
+    });
+    svg.appendChild(path);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", district.labelX);
+    label.setAttribute("y", district.labelY + 3);
+    label.setAttribute("class", "tehsil-label" + (isPilot ? " is-pilot" : ""));
+    label.textContent = district.name.toUpperCase();
+    label.style.pointerEvents = "none";
+    svg.appendChild(label);
+  });
+}
+
+function renderLegend(elId) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '<div class="legend-item"><span class="legend-swatch" style="background:var(--aquifer-soft);border:1px solid var(--aquifer)"></span>Vidarbha district boundary</div>' +
+    '<div class="legend-item"><span class="legend-swatch" style="background:var(--' + riskKey(currentScore(TEHSILS[0], null)) + ')"></span>Nagpur pilot risk</div>';
+}
+
+const tooltipEl = document.getElementById("map-tooltip");
+function handleHover(t, parts, evt) {
+  const wrap = evt.currentTarget.closest(".map-wrap");
+  const rect = wrap.getBoundingClientRect();
+  tooltipEl.style.left = (evt.clientX - rect.left) + "px";
+  tooltipEl.style.top = (evt.clientY - rect.top) + "px";
+  tooltipEl.innerHTML = "<b>" + t.name + "</b> &middot; " + RISK[riskKey(parts.score)].label;
+  tooltipEl.classList.add("show");
+}
+function handleLeave() { tooltipEl.classList.remove("show"); }
+
+/* ============================================================
+   DRAWDOWN SERIES
+   ============================================================ */
+function buildSeries(t, sliders) {
+  const tid = typeof t === "string" ? t : (t ? t.id : "");
+  // If simulation data exists for this tehsil under active sliders
+  if (sliders && state.scenarioData && state.scenarioData.tehsil && state.scenarioData.tehsil.id === tid && state.scenarioData.tehsil.drawdown) {
+    return state.scenarioData.tehsil.drawdown;
+  }
+  // If baseline data exists for this tehsil
+  if (state.baselineData && state.baselineData[tid] && state.baselineData[tid].drawdown && (!sliders || (sliders.rainfall === 0 && sliders.drip === 20 && sliders.borewell === 0))) {
+    return state.baselineData[tid].drawdown;
+  }
+  // Fallback
+  const score = currentScore(t, sliders);
+  const naturalScore = Math.round((t && t.base ? t.base : 50) * (1 - (t && t.humanRatio ? t.humanRatio : 0.5)));
+  const years = [];
+  const observed = [];
+  const baseline = [];
+  let level = 14, baseLevel = 14;
+  const rnd = mulberry32((t && t.cx ? t.cx : 200) * 31 + (t && t.cy ? t.cy : 200) * 7 + 1);
+  for (let y = 2010; y <= 2024; y++) {
+    years.push(String(y));
+    level -= ((t && t.base ? t.base : 50) / 100) * 0.14 + (rnd() - 0.5) * 0.04;
+    baseLevel -= (naturalScore / 100) * 0.05 + (rnd() - 0.5) * 0.02;
+    observed.push(+level.toFixed(2));
+    baseline.push(+baseLevel.toFixed(2));
+  }
+  const splitIndex = years.length;
+  for (let y = 2025; y <= 2034; y++) {
+    years.push(String(y));
+    level -= (score / 100) * 0.14;
+    baseLevel -= (naturalScore / 100) * 0.05;
+    observed.push(+level.toFixed(2));
+    baseline.push(+baseLevel.toFixed(2));
+  }
+  return { years, observed, baseline, splitIndex };
+}
+
+function drawdownChart(canvasId, tehsil, sliders) {
+  const s = buildSeries(tehsil, sliders);
+  const ctx = document.getElementById(canvasId).getContext("2d");
+  if (state.charts[canvasId]) state.charts[canvasId].destroy();
+  state.charts[canvasId] = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: s.years,
+      datasets: [
+        {
+          label: "Observed / projected",
+          data: s.observed,
+          borderColor: cssVar("--deep-water-soft") || "#1B4A56",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.25,
+          segment: { borderDash: (c) => (c.p0DataIndex >= s.splitIndex - 1 ? [5, 4] : undefined) }
+        },
+        {
+          label: "Climate-only baseline",
+          data: s.baseline,
+          borderColor: cssVar("--aquifer") || "#1F7A68",
+          backgroundColor: "transparent",
+          borderWidth: 1.5,
+          borderDash: [2, 3],
+          pointRadius: 0,
+          tension: 0.25
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: true, position: "bottom", labels: { boxWidth: 10, font: { size: 10.5, family: "IBM Plex Sans" }, color: cssVar("--ink-soft") } },
+        tooltip: { titleFont: { family: "IBM Plex Mono", size: 11 }, bodyFont: { family: "IBM Plex Mono", size: 11 } }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 6, font: { size: 10, family: "IBM Plex Mono" }, color: cssVar("--ink-soft") }, grid: { display: false } },
+        y: { title: { display: true, text: "metres below ground", font: { size: 10, family: "IBM Plex Sans" }, color: cssVar("--ink-soft") }, ticks: { font: { size: 10, family: "IBM Plex Mono" }, color: cssVar("--ink-soft") }, grid: { color: cssVar("--line-soft") } }
+      }
+    }
+  });
+}
+
+function attribChart(canvasId, humanPct) {
+  const ctx = document.getElementById(canvasId).getContext("2d");
+  if (state.charts[canvasId]) state.charts[canvasId].destroy();
+  state.charts[canvasId] = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Human extraction", "Natural climate"],
+      datasets: [{
+        data: [humanPct, 100 - humanPct],
+        backgroundColor: [cssVar("--critical") || "#C3641F", cssVar("--aquifer") || "#1F7A68"],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "68%",
+      plugins: { legend: { display: false }, tooltip: { enabled: true } }
+    }
+  });
+}
+
+/* ============================================================
+   DASHBOARD RENDER
+   ============================================================ */
+let dashboardFilter = null;
+
+function renderStatStrip() {
+  const counts = { safe: 0, semi: 0, critical: 0, over: 0 };
+  TEHSILS.forEach((t) => { counts[riskKey(currentScore(t, null))]++; });
+  const el = document.getElementById("stat-strip");
+  el.innerHTML = Object.keys(RISK).map((k) => {
+    const active = dashboardFilter === k ? "filtered" : "";
+    return '<button class="stat-chip ' + active + '" data-key="' + k + '">' +
+      '<div class="stat-top"><span class="stat-label">' + RISK[k].label + '</span><span class="stat-swatch" style="background:var(--' + k + ')"></span></div>' +
+      '<span class="stat-count">' + counts[k] + '</span>' +
+      '<span class="stat-sub">tehsils</span></button>';
+  }).join("");
+  el.querySelectorAll(".stat-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.key;
+      dashboardFilter = dashboardFilter === k ? null : k;
+      renderStatStrip();
+      renderDashboardMap();
+    });
+  });
+}
+
+function renderDashboardMap() {
+  renderMap("tehsil-map", {
+    selected: state.selectedTehsil,
+    filterKey: dashboardFilter,
+    onClick: (id) => selectTehsil(id),
+    onHover: handleHover,
+    onLeave: handleLeave
+  });
+}
+
+function selectTehsil(id) {
+  state.selectedTehsil = id;
+  const t = TEHSILS.find((x) => x.id === id);
+  if (!t) return;
+  const parts = scoreParts(t, null);
+  document.getElementById("detail-empty").style.display = "none";
+  document.getElementById("detail-content").classList.add("show");
+  document.getElementById("detail-name").textContent = t.name;
+  const key = riskKey(parts.score);
+  const badge = document.getElementById("detail-badge");
+  badge.style.background = "var(--" + key + "-bg)";
+  badge.style.color = "var(--" + key + ")";
+  badge.querySelector(".dot").style.background = "var(--" + key + ")";
+  document.getElementById("detail-badge-text").textContent = RISK[key].label;
+  document.getElementById("detail-statement").textContent = plainLanguage(t, parts.score, parts.humanPct);
+  drawdownChart("drawdown-chart", t, null);
+  attribChart("attrib-chart", parts.humanPct);
+  document.getElementById("attrib-legend").innerHTML =
+    '<div class="li"><span class="sw" style="background:var(--critical)"></span>Human extraction <b>' + parts.humanPct + '%</b></div>' +
+    '<div class="li"><span class="sw" style="background:var(--aquifer)"></span>Natural climate <b>' + parts.naturalPct + '%</b></div>';
+  renderDashboardMap();
+}
+
+/* ============================================================
+   SANDBOX
+   ============================================================ */
+let simulateDebounceTimer = null;
+
+function debouncedRunSimulation() {
+  clearTimeout(simulateDebounceTimer);
+  simulateDebounceTimer = setTimeout(() => {
+    runSimulationImmediate();
+  }, 180);
+}
+
+async function runSimulationImmediate() {
+  const t = TEHSILS.find((x) => x.id === state.sandboxFocus) || TEHSILS[0];
+  document.getElementById("sandbox-focus-name").textContent = t.name;
+  document.getElementById("val-rainfall").textContent = fmtPct(state.sliders.rainfall);
+  document.getElementById("val-drip").textContent = state.sliders.drip + "%";
+  document.getElementById("val-borewell").textContent = fmtPct(state.sliders.borewell);
+
+  await fetchSimulateFromAPI(t.id, state.sliders);
+  renderSandboxMap();
+  drawdownChart("sandbox-chart", t, state.sliders);
+}
+
+function renderSandboxMap() {
+  renderMap("tehsil-map-sandbox", {
+    selected: state.sandboxFocus,
+    sliders: state.sliders,
+    onClick: (id) => {
+      state.sandboxFocus = id;
+      runSimulationImmediate();
+    }
+  });
+}
+
+function renderSandbox() {
+  runSimulationImmediate();
+}
+
+function renderScenarioList() {
+  const el = document.getElementById("scenario-list-items");
+  if (state.scenarios.length === 0) {
+    el.innerHTML = '<div class="scenario-empty">No scenarios saved yet.</div>';
+    return;
+  }
+  el.innerHTML = state.scenarios.map((s, i) =>
+    '<div class="scenario-item"><div><div>' + s.label + '</div><div class="scenario-meta">' + s.time + '</div></div>' +
+    '<button class="scenario-load" data-idx="' + i + '">Load</button></div>'
+  ).join("");
+  el.querySelectorAll(".scenario-load").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const s = state.scenarios[+btn.dataset.idx];
+      state.sliders = Object.assign({}, s.sliders);
+      document.getElementById("slider-rainfall").value = state.sliders.rainfall;
+      document.getElementById("slider-drip").value = state.sliders.drip;
+      document.getElementById("slider-borewell").value = state.sliders.borewell;
+      runSimulationImmediate();
+      showToast("Scenario loaded");
+    });
+  });
+}
+
+document.getElementById("slider-rainfall").addEventListener("input", (e) => {
+  state.sliders.rainfall = +e.target.value;
+  document.getElementById("val-rainfall").textContent = fmtPct(state.sliders.rainfall);
+  debouncedRunSimulation();
+});
+document.getElementById("slider-drip").addEventListener("input", (e) => {
+  state.sliders.drip = +e.target.value;
+  document.getElementById("val-drip").textContent = state.sliders.drip + "%";
+  debouncedRunSimulation();
+});
+document.getElementById("slider-borewell").addEventListener("input", (e) => {
+  state.sliders.borewell = +e.target.value;
+  document.getElementById("val-borewell").textContent = fmtPct(state.sliders.borewell);
+  debouncedRunSimulation();
+});
+
+document.getElementById("reset-sliders-btn").addEventListener("click", () => {
+  state.sliders = { rainfall: 0, drip: 20, borewell: 0 };
+  document.getElementById("slider-rainfall").value = 0;
+  document.getElementById("slider-drip").value = 20;
+  document.getElementById("slider-borewell").value = 0;
+  runSimulationImmediate();
+  showToast("Sliders reset");
+});
+document.getElementById("save-scenario-btn").addEventListener("click", () => {
+  const t = TEHSILS.find((x) => x.id === state.sandboxFocus);
+  state.scenarios.unshift({
+    label: t.name + " · rain " + fmtPct(state.sliders.rainfall) + ", drip " + state.sliders.drip + "%, wells " + fmtPct(state.sliders.borewell),
+    time: "Saved just now",
+    sliders: Object.assign({}, state.sliders)
+  });
+  renderScenarioList();
+  showToast("Scenario saved");
+});
+
+document.getElementById("open-in-sandbox-btn").addEventListener("click", () => {
+  if (!state.selectedTehsil) return;
+  state.sandboxFocus = state.selectedTehsil;
+  switchView("sandbox");
+});
+
+/* ============================================================
+   REPORTS
+   ============================================================ */
+function renderReports() {
+  const el = document.getElementById("reports-list");
+  if (state.reports.length === 0) {
+    el.innerHTML = '<div class="reports-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg><p>No reports yet. Generate one from here, or export directly from a tehsil.</p></div>';
+    return;
+  }
+  el.innerHTML = state.reports.map((r, i) =>
+    '<div class="report-row">' +
+    '<div class="report-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 17h6M9 9h2"/></svg></div>' +
+    '<div class="report-info"><div class="report-title">' + r.title + '</div><div class="report-meta">' + r.date + ' &middot; ' + r.scope + '</div></div>' +
+    '<span class="report-status">' + r.status + '</span>' +
+    '<div class="report-actions">' +
+    '<button class="btn btn-quiet" data-act="view" data-idx="' + i + '">View</button>' +
+    '<button class="btn btn-ghost" data-act="dl" data-idx="' + i + '">Download</button>' +
+    '</div></div>'
+  ).join("");
+  el.querySelectorAll("[data-act='view']").forEach((btn) => btn.addEventListener("click", () => viewReport(+btn.dataset.idx)));
+  el.querySelectorAll("[data-act='dl']").forEach((btn) => btn.addEventListener("click", () => {
+    showToast("Downloaded " + state.reports[+btn.dataset.idx].file);
+  }));
+}
+function viewReport(idx) {
+  const r = state.reports[idx];
+  openModal(
+    '<div class="modal-head"><span class="modal-title">' + r.title + '</span>' +
+    '<button class="modal-close" onclick="document.getElementById(\'modal-overlay\').classList.remove(\'open\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="modal-row"><span>Scope</span><span>' + r.scope + '</span></div>' +
+    '<div class="modal-row"><span>Risk category</span><span>' + r.risk + '</span></div>' +
+    '<div class="modal-row"><span>Human share</span><span>' + r.humanPct + '%</span></div>' +
+    '<div class="modal-row"><span>Generated</span><span>' + r.date + '</span></div>' +
+    '<div class="modal-foot"><button class="btn btn-primary btn-block" id="modal-dl-btn">Download PDF</button></div>'
+  );
+  document.getElementById("modal-dl-btn").addEventListener("click", () => {
+    closeModal();
+    showToast("Downloaded " + r.file);
+  });
+}
+function addReport(tehsilId) {
+  let scope = "District-wide";
+  let risk = "Mixed";
+  let humanPct = Math.round(TEHSILS.reduce((a, t) => a + scoreParts(t, null).humanPct, 0) / TEHSILS.length);
+  if (tehsilId) {
+    const t = TEHSILS.find((x) => x.id === tehsilId);
+    const parts = scoreParts(t, null);
+    scope = t.name;
+    risk = RISK[riskKey(parts.score)].label;
+    humanPct = parts.humanPct;
+  }
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const rep = {
+    title: scope + " outlook, " + dateStr,
+    date: dateStr, scope: scope, risk: risk, humanPct: humanPct,
+    status: "Ready", file: "GLOW_" + scope.replace(/[^a-zA-Z0-9]+/g, "_") + ".pdf"
+  };
+  state.reports.unshift(rep);
+  renderReports();
+  return rep;
+}
+document.getElementById("generate-report-btn").addEventListener("click", () => {
+  addReport(state.selectedTehsil);
+  showToast("Report generated");
+});
+document.getElementById("export-report-btn").addEventListener("click", () => {
+  addReport(state.selectedTehsil);
+  switchView("reports");
+  showToast("Report generated");
+});
+
+/* ============================================================
+   DATA SOURCES
+   ============================================================ */
+function renderSources() {
+  const el = document.getElementById("source-grid");
+  el.innerHTML = SOURCES.map((s, i) =>
+    '<div class="source-card ' + (s.tier2 && s.status !== "connected" ? "tier2" : "") + '">' +
+    '<div class="source-top"><div><div class="source-name">' + s.name + '</div><div class="source-tier">' + s.tier + '</div></div>' +
+    '<span class="source-status ' + s.status + '" id="src-status-' + i + '">' + (s.status === "connected" ? "Connected" : "Not connected") + '</span></div>' +
+    '<div class="source-desc">' + s.desc + '</div>' +
+    '<div class="source-sync" id="src-sync-' + i + '">' + (s.status === "connected" ? "Last synced 2 hours ago" : "Never synced") + '</div>' +
+    '<div class="source-actions">' +
+    (s.tier2
+      ? '<button class="btn btn-ghost btn-block" data-act="connect" data-idx="' + i + '" ' + (s.status === "connected" ? "disabled" : "") + '>' + (s.status === "connected" ? "Connected" : "Connect") + '</button>'
+      : '<button class="btn btn-quiet btn-block" data-act="sync" data-idx="' + i + '">Sync now</button>') +
+    '</div></div>'
+  ).join("");
+  el.querySelectorAll("[data-act='sync']").forEach((btn) => btn.addEventListener("click", () => {
+    const i = +btn.dataset.idx;
+    document.getElementById("src-sync-" + i).textContent = "Last synced just now";
+    showToast("Synced " + SOURCES[i].name);
+  }));
+  el.querySelectorAll("[data-act='connect']").forEach((btn) => btn.addEventListener("click", () => {
+    const i = +btn.dataset.idx;
+    SOURCES[i].status = "connected";
+    renderSources();
+    showToast("Connected " + SOURCES[i].name);
+  }));
+}
+
+/* ============================================================
+   HOW IT WORKS
+   ============================================================ */
+function renderSteps() {
+  const icons = [
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h18M3 6h18M3 18h18"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="3.2"/><circle cx="16" cy="12" r="3.2"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0zM4 18h16M14 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0z"/></svg>'
+  ];
+  const el = document.getElementById("steps-grid");
+  el.innerHTML = STEPS.map((s, i) =>
+    '<div class="step-card" data-idx="' + i + '"><div class="step-icon">' + icons[i] + '</div>' +
+    '<div class="step-title">' + s.title + '</div><div class="step-desc">' + s.desc + '</div>' +
+    '<div class="step-more">' + s.more + '</div>' +
+    '<div class="step-toggle-hint">Tap for detail</div></div>'
+  ).join("");
+  el.querySelectorAll(".step-card").forEach((card) => card.addEventListener("click", () => card.classList.toggle("expanded")));
+}
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+function renderAlerts() {
+  const sorted = TEHSILS.map((t) => ({ t: t, score: currentScore(t, null) })).sort((a, b) => b.score - a.score).slice(0, 4);
+  const el = document.getElementById("alerts-list");
+  el.innerHTML = sorted.map((row) => {
+    const key = riskKey(row.score);
+    return '<button class="alert-item" data-tehsil="' + row.t.id + '">' +
+      '<span class="alert-dot" style="background:var(--' + key + ')"></span>' +
+      '<span><span class="alert-text">' + row.t.name + ' crossed into ' + RISK[key].label.toLowerCase() + ' this quarter.</span>' +
+      '<div class="alert-time">2 days ago</div></span></button>';
+  }).join("");
+  el.querySelectorAll(".alert-item").forEach((btn) => btn.addEventListener("click", () => {
+    document.getElementById("alerts-dropdown").classList.remove("open");
+    switchView("dashboard");
+    selectTehsil(btn.dataset.tehsil);
+  }));
+}
+
+/* ============================================================
+   NAV / SEARCH / DROPDOWNS
+   ============================================================ */
+const VIEW_TITLES = { dashboard: "Dashboard", sandbox: "Policy Sandbox", reports: "Reports", sources: "Data Sources", howitworks: "How It Works" };
+function switchView(view) {
+  state.view = view;
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.getElementById("view-" + view).classList.add("active");
+  document.querySelectorAll(".navitem").forEach((n) => n.classList.toggle("active", n.dataset.view === view));
+  document.getElementById("view-title-text").textContent = VIEW_TITLES[view];
+  document.getElementById("main").scrollTop = 0;
+  if (view === "sandbox") renderSandbox();
+}
+document.querySelectorAll(".navitem").forEach((btn) => btn.addEventListener("click", () => switchView(btn.dataset.view)));
+
+const searchInput = document.getElementById("search-input");
+const searchResults = document.getElementById("search-results");
+searchInput.addEventListener("input", () => {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) { searchResults.classList.remove("open"); return; }
+  const matches = TEHSILS.filter((t) => t.name.toLowerCase().includes(q));
+  if (matches.length === 0) {
+    searchResults.innerHTML = '<div class="search-result-item" style="color:var(--ink-soft)">No tehsil matches "' + searchInput.value + '"</div>';
+  } else {
+    searchResults.innerHTML = matches.map((t) => {
+      const key = riskKey(currentScore(t, null));
+      return '<button class="search-result-item" data-id="' + t.id + '"><span>' + t.name + '</span><span class="legend-swatch" style="background:var(--' + key + ')"></span></button>';
+    }).join("");
+    searchResults.querySelectorAll(".search-result-item").forEach((btn) => btn.addEventListener("click", () => {
+      switchView("dashboard");
+      selectTehsil(btn.dataset.id);
+      searchInput.value = "";
+      searchResults.classList.remove("open");
+    }));
+  }
+  searchResults.classList.add("open");
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".search-wrap")) searchResults.classList.remove("open");
+});
+
+function wireDropdown(btnId, ddId) {
+  const btn = document.getElementById(btnId), dd = document.getElementById(ddId);
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !dd.classList.contains("open");
+    document.querySelectorAll(".dropdown").forEach((d) => d.classList.remove("open"));
+    if (willOpen) dd.classList.add("open");
+  });
+}
+wireDropdown("alerts-btn", "alerts-dropdown");
+wireDropdown("profile-btn", "profile-dropdown");
+document.addEventListener("click", () => document.querySelectorAll(".dropdown").forEach((d) => d.classList.remove("open")));
+document.querySelectorAll(".dropdown").forEach((d) => d.addEventListener("click", (e) => e.stopPropagation()));
+
+document.getElementById("signout-btn").addEventListener("click", () => {
+  document.getElementById("profile-dropdown").classList.remove("open");
+  showToast("Signed out");
+});
+document.getElementById("preferences-btn").addEventListener("click", () => {
+  document.getElementById("profile-dropdown").classList.remove("open");
+  openModal(
+    '<div class="modal-head"><span class="modal-title">Preferences</span>' +
+    '<button class="modal-close" onclick="document.getElementById(\'modal-overlay\').classList.remove(\'open\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="pref-row"><span>Dark mode</span><button class="toggle ' + (state.theme === "dark" ? "on" : "") + '" id="theme-toggle"></button></div>' +
+    '<div class="pref-row"><span>Compact numbers</span><button class="toggle ' + (state.compactNumbers ? "on" : "") + '" id="compact-toggle"></button></div>'
+  );
+  document.getElementById("theme-toggle").addEventListener("click", (e) => {
+    state.theme = state.theme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", state.theme);
+    e.currentTarget.classList.toggle("on");
+    refreshOpenCharts();
+    showToast(state.theme === "dark" ? "Dark mode on" : "Dark mode off");
+  });
+  document.getElementById("compact-toggle").addEventListener("click", (e) => {
+    state.compactNumbers = !state.compactNumbers;
+    e.currentTarget.classList.toggle("on");
+  });
+});
+function refreshOpenCharts() {
+  if (state.selectedTehsil) selectTehsil(state.selectedTehsil);
+  if (state.view === "sandbox") renderSandbox();
+}
+
+/* ============================================================
+   HERO: THREE.JS WATER TABLE VISUAL
+   Amplitude and tint reflect the district's current average score,
+   so the one bold visual moment is doing real information work.
+   ============================================================ */
+function initHero() {
+  try {
+    const canvas = document.getElementById("hero-canvas");
+    const avgScore = TEHSILS.reduce((a, t) => a + currentScore(t, null), 0) / TEHSILS.length;
+    const stress = clamp(avgScore / 100, 0, 1);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(0, 3.4, 6.4);
+    camera.lookAt(0, -0.3, 0);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(3, 5, 2);
+    scene.add(dir);
+
+    const calmColor = new THREE.Color(0x2E8E7A);
+    const stressColor = new THREE.Color(0xC3641F);
+    const waterColor = calmColor.clone().lerp(stressColor, stress * 0.65);
+
+    const geo = new THREE.PlaneGeometry(11, 6, 46, 26);
+    geo.rotateX(-Math.PI / 2.15);
+    const mat = new THREE.MeshPhongMaterial({
+      color: waterColor, shininess: 55, transparent: true, opacity: 0.85,
+      side: THREE.DoubleSide, wireframe: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = -0.6;
+    scene.add(mesh);
+
+    const wireMat = new THREE.MeshBasicMaterial({ color: waterColor, wireframe: true, transparent: true, opacity: 0.18 });
+    const wireMesh = new THREE.Mesh(geo, wireMat);
+    wireMesh.position.copy(mesh.position);
+    scene.add(wireMesh);
+
+    const posAttr = geo.attributes.position;
+    const basePositions = Float32Array.from(posAttr.array);
+    const amp = 0.10 + stress * 0.22;
+    const speed = 0.5 + stress * 0.7;
+
+    function resize() {
+      const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+      const h = canvas.clientHeight || canvas.parentElement.clientHeight;
+      if (w === 0 || h === 0) return;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let t0 = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      if (reduceMotion) { renderer.render(scene, camera); return; }
+      t0 += 0.016 * speed;
+      const arr = posAttr.array;
+      for (let i = 0; i < arr.length; i += 3) {
+        const x = basePositions[i], z = basePositions[i + 2];
+        arr[i + 1] = Math.sin(x * 0.9 + t0) * amp + Math.cos(z * 0.7 + t0 * 0.8) * amp * 0.6;
+      }
+      posAttr.needsUpdate = true;
+      geo.computeVertexNormals();
+      renderer.render(scene, camera);
+    }
+    animate();
+  } catch (err) {
+    console.warn("Hero visual skipped:", err);
+  }
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init() {
+  await Promise.all([fetchTehsilsFromAPI(), loadVidarbhaBoundaryData()]);
+  renderStatStrip();
+  renderDashboardMap();
+  renderLegend("map-legend");
+  renderLegend("map-legend-sandbox");
+  renderAlerts();
+  renderSources();
+  renderSteps();
+  renderReports();
+  await runSimulationImmediate();
+  initHero();
+  selectTehsil("nagpur-urban");
+}
+init();
+
+})();
+</script>
+</body>
+</html>

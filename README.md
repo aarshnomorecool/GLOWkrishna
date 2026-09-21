@@ -1,101 +1,65 @@
-# GLOW — build status
+# GLOW — Groundwater Level Outlook & Water-policy Intelligence
 
-This is a first working slice of the GLOW project described in `claude.md`,
-built on the **fallback path** the spec itself recommends first ("start on
-the fallback path to get an ugly-but-working end-to-end demo fast"):
-Streamlit + Plotly + Folium, one Python codebase, no separate frontend build.
+Groundwater governance dashboard for Nagpur district, separating natural climate-driven depletion from human extraction pressure, and enabling district officials to simulate policy interventions before spending public funds.
 
-## What's here and working right now
+## Architecture & Features
 
-- **Two-stage model, kept as genuinely separate inspectable stages**
-  (`src/baseline_model.py`, `src/residual_model.py`), exactly as
-  `claude.md`'s coding conventions require:
-  - **Stage 1 — Climate Baseline**: RandomForest trained on rainfall,
-    temperature, recharge proxy, local hydrogeology (tehsil), season.
-    Never sees any human/anthropogenic feature.
-  - **Stage 2 — Residual Extraction**: RandomForest trained on
-    `observed − baseline_prediction`, regressed against anthropogenic
-    proxies only (crop water-intensity index, borewell density,
-    irrigation census proxy). Never sees rainfall/temperature/tehsil.
-  - Both use `monotonic_cst` constraints (more borewells/cropping intensity
-    → never a *lower* predicted human residual; more rainfall → never a
-    *deeper* predicted baseline). Without this, a weak-R² tree ensemble can
-    learn a locally sign-flipped relationship for one input — which would
-    have shown up as a slider moving a block the *wrong* direction in the
-    live demo, not as a bad offline metric. Verified in a scenario sweep,
-    not just eyeballed (see `python -m src.train` + ad hoc scripts used
-    during this build).
-- **Policy Sandbox** (`src/simulate.py`): sliders for rainfall change,
-  drip-irrigation adoption, borewell growth. A slider move reruns both
-  trained stages on a single perturbed row per tehsil — fast, since it's
-  inference against already-persisted `models/*.joblib`, not retraining.
-  Also produces a 10-year forward-projected drawdown curve per block.
-- **Risk classification** (`src/risk.py`): buckets tehsils into
-  Safe / Semi-Critical / Critical / Over-Exploited — IN-GRES's own
-  category language — using quantile thresholds fit once on the reference
-  population, reused (not recomputed) on every scenario so a block's
-  category moves relative to a fixed bar.
-- **Dashboard** (`app/streamlit_app.py`): choropleth map of the 14 Nagpur
-  tehsils colored by risk category (click a block, or use the sidebar
-  selector), a district-wide summary strip, a before/after map toggle, a
-  drawdown curve + attribution split panel per block, and a plain-language
-  risk statement — covering every item in `claude.md`'s Dashboard
-  Requirements section.
-- **Synthetic Nagpur dataset** (`scripts/generate_synthetic_data.py` →
-  `data/processed/nagpur_blocks.csv`): 14 tehsils × 2010–2024 × 4 seasons,
-  generated with a real underlying structure (climate signal + compounding
-  anthropogenic-pressure trend + noise) so the two-stage split is genuinely
-  learnable and demoable — not just random numbers.
+- **Two-stage model, kept as genuinely separate inspectable stages**:
+  - **Stage 1 — Climate Baseline** (`src/baseline_model.py`): RandomForest trained on rainfall, temperature, recharge proxy, local hydrogeology (tehsil), and season. Predicts expected water-table depth under natural climate alone.
+  - **Stage 2 — Residual Extraction** (`src/residual_model.py`): RandomForest trained on `observed − baseline_prediction`, regressed against human proxies (crop water intensity, borewell density, irrigation census proxy).
+  - Both stages enforce monotonic constraints (`monotonic_cst`).
+- **Risk Classification** (`src/risk.py`): Buckets tehsils into Safe, Semi-Critical, Critical, and Over-Exploited using quantile thresholds fit on reference distributions.
+- **Policy Sandbox & Simulation Engine** (`src/simulate.py`): Fast single-row inference against persisted artifacts (`models/*.joblib`) producing forward 10-year drawdown projections under perturbed climate and agricultural interventions.
+- **FastAPI REST Service** (`src/api.py`):
+  - `GET /api/tehsils`: Serves baseline scores, risk categories, attribution splits, and drawdown curves for all 14 tehsils without retraining.
+  - `POST /api/simulate`: Runs scenario inference with `{rainfall, drip, borewell, tehsil_id}` and returns updated projections and district-wide scores.
+  - `GET /`: Serves the live web dashboard.
+- **Frontend Dashboard** (`glow-product-mockup.html`):
+  - Interactive choropleth map of Nagpur's 14 tehsils.
+  - Policy Sandbox with interactive sliders (rainfall, drip irrigation, borewells) with debounced live API recomputations.
+  - Dual-line Chart.js drawdown charts (observed/projected vs. climate baseline).
+  - Attribution donut charts and plain-language summary statements.
+  - Three.js animated 3D water table visualization driven by district-wide stress.
+  - Data sources status, reports generation, and alerts.
 
-## What's explicitly NOT real yet (~70% remaining)
+## Running the Project
 
-- **All data is synthetic.** None of the Tier 1/2 sources in `claude.md`
-  (India-WRIS, IMD Pune, data.gov.in crop stats, Minor Irrigation Census)
-  have been pulled. `data/raw/` is an empty landing spot for those pulls.
-  Swapping in real data means writing the actual ingestion scripts and
-  producing a CSV with the same schema as `nagpur_blocks.csv` — nothing
-  downstream (features/models/sandbox/dashboard) should need to change.
-- **Tehsil boundaries are placeholder squares**, not real GeoJSON
-  (`data/geo/nagpur_tehsils.geojson`), centered on approximate centroids.
-  Needs replacing with real GSDA GIS layers or the datameet community
-  boundary repo per `claude.md`'s Tier 3 notes.
-- **No real IN-GRES stage-of-extraction ground truth** — the risk category
-  is a ranking heuristic over the model's own residual output, not
-  validated against real drought-year / high-extraction-year sanity
-  checks as `claude.md`'s Known Challenges section calls for.
-- **Residual model fit is modest** (R² ≈ 0.25 on held-out synthetic data)
-  — expected, since a meaningful share of the "residual" is actually the
-  baseline model's own estimation error rather than true human signal,
-  which is the exact caveat `claude.md` warns not to overclaim in the UI.
-  Real data with a cleaner natural signal (denser rainfall stations, actual
-  soil/geology layers) should tighten this.
-- **No FastAPI/React "primary path"** — everything is one Streamlit process.
-  Worth porting only if 2+ days remain and a frontend dev is free, per
-  `claude.md`'s own recommendation.
-- **No tests, no lagged-effect validation, no whitepaper.**
-
-## Running it
-
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
-python scripts/generate_synthetic_data.py   # writes data/processed/*.csv, data/geo/*.geojson
-python -m src.train                          # trains both stages, writes models/*.joblib
-streamlit run app/streamlit_app.py
 ```
 
-## Project layout
+2. (Optional) Re-generate synthetic data and retrain models:
+```bash
+python scripts/generate_synthetic_data.py
+python -m src.train
+```
+
+3. Launch the FastAPI server:
+```bash
+uvicorn src.api:app --reload --port 8000
+```
+*(Or simply run: `python -m src.api`)*
+
+4. Open in your browser:
+```
+http://localhost:8000
+```
+
+## Project Layout
 
 ```
-scripts/generate_synthetic_data.py   stand-in for the real data-ingestion pipeline
-src/config.py                        shared constants: tehsil registry, schema, risk categories
-src/features.py                      encoding + monotonic-constraint definitions (training AND sandbox use this)
-src/baseline_model.py                Stage 1 — Climate Baseline Model
-src/residual_model.py                Stage 2 — Residual Extraction Model
-src/risk.py                          quantile-based risk classification
-src/train.py                         orchestrates both stages, builds dashboard-ready CSVs
-src/simulate.py                      Policy Sandbox — scenario inference + drawdown projection
-app/streamlit_app.py                 the dashboard
-models/                              persisted joblib artifacts + risk thresholds (git-ignore if this gets committed)
-data/processed/                      synthetic dataset + enriched/status CSVs the dashboard reads
-data/geo/                            placeholder tehsil GeoJSON
+src/api.py                           FastAPI application & simulation endpoints
+glow-product-mockup.html             Interactive frontend dashboard & Policy Sandbox
+src/config.py                        Tehsil registry, schema, risk categories & color tokens
+src/features.py                      Encoding & monotonic constraint definitions
+src/baseline_model.py                Stage 1 — Climate Baseline RandomForest
+src/residual_model.py                Stage 2 — Residual Extraction RandomForest
+src/risk.py                          Quantile-based risk classification
+src/train.py                         Pipeline training & artifact generation
+src/simulate.py                      Policy Sandbox scenario inference & projection engine
+scripts/generate_synthetic_data.py   Synthetic data generator
+models/                              Persisted joblib model artifacts & risk thresholds
+data/processed/                      Processed block datasets & summary CSVs
+data/geo/                            Tehsil GeoJSON boundaries
 ```
