@@ -28,8 +28,11 @@ from src.simulate import (
 
 ENRICHED_PATH = PROCESSED_DIR / "nagpur_blocks_enriched.csv"
 STATUS_PATH = PROCESSED_DIR / "tehsil_status.csv"
-HTML_PATH = ROOT_DIR / "glow-product-mockup.html"
-MAHARASHTRA_BOUNDARIES_PATH = ROOT_DIR / "data" / "geo" / "maharashtra_districts.geojson"
+FRONTEND_DIR = ROOT_DIR / "frontend"
+HTML_PATH = FRONTEND_DIR / "index.html"
+CSS_PATH = FRONTEND_DIR / "styles.css"
+JS_PATH = FRONTEND_DIR / "app.js"
+NAGPUR_TEHSILS_PATH = ROOT_DIR / "data" / "geo" / "nagpur_tehsils.geojson"
 
 # Tehsil slug ID <-> formal config name mapping
 TEHSIL_ID_TO_NAME: Dict[str, str] = {
@@ -302,18 +305,34 @@ app.add_middleware(
 
 @app.get("/")
 async def serve_ui():
-    """Serves the frontend mockup directly at root."""
+    """Serves the frontend (separated index.html + styles.css + app.js) at root."""
     if HTML_PATH.exists():
-        return FileResponse(HTML_PATH)
+        return FileResponse(HTML_PATH, media_type="text/html")
     return JSONResponse({"status": "GLOW API running", "docs": "/docs"})
 
 
-@app.get("/assets/maharashtra_districts.geojson")
-async def serve_maharashtra_boundaries():
-    """Serve the local public district-boundary data used by the Vidarbha map."""
-    if not MAHARASHTRA_BOUNDARIES_PATH.exists():
-        raise HTTPException(status_code=404, detail="District boundary data not found")
-    return FileResponse(MAHARASHTRA_BOUNDARIES_PATH, media_type="application/geo+json")
+@app.get("/styles.css")
+async def serve_css():
+    """Serves the separated frontend stylesheet."""
+    if not CSS_PATH.exists():
+        raise HTTPException(status_code=404, detail="Frontend stylesheet not found")
+    return FileResponse(CSS_PATH, media_type="text/css")
+
+
+@app.get("/app.js")
+async def serve_js():
+    """Serves the separated frontend application script."""
+    if not JS_PATH.exists():
+        raise HTTPException(status_code=404, detail="Frontend script not found")
+    return FileResponse(JS_PATH, media_type="application/javascript")
+
+
+@app.get("/assets/nagpur_tehsils.geojson")
+async def serve_nagpur_tehsils():
+    """Serve the Survey of India Nagpur tehsil boundaries used by the map."""
+    if not NAGPUR_TEHSILS_PATH.exists():
+        raise HTTPException(status_code=404, detail="Tehsil boundary data not found")
+    return FileResponse(NAGPUR_TEHSILS_PATH, media_type="application/geo+json")
 
 
 @app.get("/api/tehsils")

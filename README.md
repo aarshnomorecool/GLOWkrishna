@@ -14,13 +14,14 @@ Groundwater governance dashboard for Nagpur district, separating natural climate
   - `GET /api/tehsils`: Serves baseline scores, risk categories, attribution splits, and drawdown curves for all 14 tehsils without retraining.
   - `POST /api/simulate`: Runs scenario inference with `{rainfall, drip, borewell, tehsil_id}` and returns updated projections and district-wide scores.
   - `GET /`: Serves the live web dashboard.
-- **Frontend Dashboard** (`glow-product-mockup.html`):
+- **Frontend Dashboard** (`frontend/` — separated `index.html` + `styles.css` + `app.js`, no logo, no 3D):
   - Interactive choropleth map of Nagpur's 14 tehsils.
   - Policy Sandbox with interactive sliders (rainfall, drip irrigation, borewells) with debounced live API recomputations.
   - Dual-line Chart.js drawdown charts (observed/projected vs. climate baseline).
   - Attribution donut charts and plain-language summary statements.
-  - Three.js animated 3D water table visualization driven by district-wide stress.
+  - Static hero banner (no WebGL/3D). No logo graphic; sidebar shows plain "GLOW / Vidarbha pilot" text only.
   - Data sources status, reports generation, and alerts.
+  - Interaction contract documented in `docs/INTERACTION_RULES.md`.
 
 ## Running the Project
 
@@ -49,8 +50,11 @@ http://localhost:8000
 ## Project Layout
 
 ```
-src/api.py                           FastAPI application & simulation endpoints
-glow-product-mockup.html             Interactive frontend dashboard & Policy Sandbox
+src/api.py                           FastAPI application & simulation endpoints (serves frontend/ at /, plus /styles.css, /app.js)
+frontend/index.html                  Dashboard markup only (references /styles.css, /app.js, Chart.js CDN)
+frontend/styles.css                  All dashboard styling (design tokens, layout, components, responsive)
+frontend/app.js                      All dashboard behavior (state, API calls, maps, charts, sandbox, reports)
+docs/INTERACTION_RULES.md            Button / interaction / process rules for the frontend
 src/config.py                        Tehsil registry, schema, risk categories & color tokens
 src/features.py                      Encoding & monotonic constraint definitions
 src/baseline_model.py                Stage 1 — Climate Baseline RandomForest
